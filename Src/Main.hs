@@ -4,7 +4,7 @@ data Planta = Planta
     soles :: Int,
     ataque :: Int
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Zombie = Zombie
   { nombre :: String,
@@ -42,6 +42,30 @@ linea4 =
   LineaDeDefensa
     { plantas = [sunFlower, peaShooter, superPeaShooter, superSunFlower, nut, superPeaShooter],
       zombies = [gargantuar, zombieBase, zombieBase]
+    }
+
+linea5 =
+  LineaDeDefensa
+    { plantas = [sunFlower, peaShooter, superPeaShooter, superSunFlower, nut, superPeaShooter],
+      zombies = zombieBase : zombies linea5
+    }
+
+linea6 =
+  LineaDeDefensa
+    { plantas = peaShooter : plantas linea6,
+      zombies = [gargantuar, zombieBase, zombieBase]
+    }
+
+linea7 =
+  LineaDeDefensa
+    { plantas = sunFlower : plantas linea7,
+      zombies = [gargantuar, zombieBase, zombieBase]
+    }
+
+linea8 =
+  LineaDeDefensa
+    { plantas = [peaShooter, peaShooter, peaShooter, peaShooter, peaShooter, peaShooter],
+      zombies = []
     }
 
 -- 1)
@@ -93,10 +117,10 @@ agregarZombie zombie linea = linea {zombies = zombies linea ++ [zombie]}
 
 -- B)Saber si una linea esta en peligro
 totalAtaquePlantas :: LineaDeDefensa -> Int
-totalAtaquePlantas linea = sum (map ataque (plantas linea))
+totalAtaquePlantas = sum . map ataque . plantas
 
 totalMordiscosZombies :: LineaDeDefensa -> Int
-totalMordiscosZombies linea = sum (map mordiscos (zombies linea))
+totalMordiscosZombies = sum . map mordiscos . zombies
 
 estaEnPeligro :: LineaDeDefensa -> Bool
 estaEnPeligro linea = (totalAtaquePlantas linea < totalMordiscosZombies linea) || (all esPeligroso (zombies linea) && not (null (zombies linea)))
@@ -106,7 +130,7 @@ esProveedora :: Planta -> Bool
 esProveedora planta = especialidadPlanta planta == "Proveedora"
 
 necesitaSerDefendida :: LineaDeDefensa -> Bool
-necesitaSerDefendida linea = all esProveedora (plantas linea)
+necesitaSerDefendida = all esProveedora . plantas
 
 -- 4) Saber si una linea es mixta (no usar length)
 lineaMixta :: LineaDeDefensa -> Bool
@@ -124,8 +148,91 @@ tienePlantasConEspecialidadesDistintas lista
 -- 5)Resultado de ataques
 -- A) Planta -> zombie
 ataqueDePlanta :: Planta -> Zombie -> Zombie
-ataqueDePlanta planta zombie = zombie {nombre = drop (ataque planta) (nombre zombie)}
+ataqueDePlanta planta zombie = zombie {nombre = drop (ataque planta) (nombre zombie), accesorios = quitarGlobo (accesorios zombie)}
+
+quitarGlobo :: [String] -> [String]
+quitarGlobo = filter (/= "Globo")
 
 -- B) Zombie -> planta
 ataqueDeZombie :: Zombie -> Planta -> Planta
-ataqueDeZombie zombie planta = planta {vida = vida planta - mordiscos zombie}
+ataqueDeZombie zombie planta = planta {vida = if vida planta > mordiscos zombie then vida planta - mordiscos zombie else 0}
+
+-- PARTE 2----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+{-
+1)
+i)Si hubiera una cantidad infinita de zombies base en una linea, al evaluar si una linea esta en peligro,
+la funcion nunca dejaria de ejecutar ya que usa funciones como map o sum que iteran para todos los elementos de la lista.
+
+ii)Si hubiera una cantidad infinita de PeaShooters en una linea, al evaluar si necesita ser defendida,
+retorna false ya que haskell utiliza lasy evaluation, lo que significa que iterara por la lista hasta encontrr
+una planta que no sea proveedora, cuando la encuentre dejara de iterar (por mas que queden mas elementos en la lista) y retornara false.
+
+Si hubiera una cantidad infinita de sunFlowers, la funcion nunca dejaria de ejecutar
+ ya que seguira iterando indefinidamente en busca de una planta no proveedora nunca la encontrara ya que solo hay sunFlowers.
+-}
+-- 2)
+cactus = Planta 9 0 0
+
+-- 3)
+type Horda = ([Zombie], [Zombie], [Zombie])
+
+hordaUno :: Horda
+hordaUno = ([zombieBase], [], [])
+
+hordaBase :: Horda
+hordaBase = ([zombieBase, zombieBase], [zombieBase, zombieBase], [zombieBase, zombieBase])
+
+septimoRegimiento :: Horda
+septimoRegimiento = ([balloonZombie, balloonZombie], [newspaperZombie], [balloonZombie, balloonZombie])
+
+region :: Horda
+region = ([gargantuar, gargantuar], [gargantuar, gargantuar], [gargantuar, gargantuar])
+
+type Jardin = [LineaDeDefensa]
+
+jardin1 :: Jardin
+jardin1 = [linea1, linea2, linea3]
+
+agregarAJardinDe3Lineas :: Jardin -> Horda -> Jardin
+agregarAJardinDe3Lineas jardin (a, b, c) =
+  [ (head jardin) {zombies = zombies (head jardin) ++ a},
+    (head (tail jardin)) {zombies = zombies (head (tail jardin)) ++ b},
+    (head (tail (tail jardin))) {zombies = zombies (head (tail (tail jardin))) ++ c}
+  ]
+
+-- 4)
+-- Explicar Mejor
+rondaDeAtaque :: Planta -> Zombie -> Int -> (Planta, Zombie)
+rondaDeAtaque planta zombie cantAtaques = (nAtaquesDeZombie planta zombie cantAtaques, ataqueDePlanta planta zombie)
+
+nAtaquesDeZombie :: Planta -> Zombie -> Int -> Planta
+nAtaquesDeZombie planta _ 0 = planta
+nAtaquesDeZombie planta zombie cantAtaques = nAtaquesDeZombie (ataqueDeZombie zombie planta) zombie (cantAtaques - 1)
+
+-- 5)
+plantaEstaMuerta :: Planta -> Bool
+plantaEstaMuerta = (== 0) . vida
+
+zombieEstaMuerto :: Zombie -> Bool
+zombieEstaMuerto = null . nombre
+
+-- 6)
+-- que se refiere con ataque sistemático?
+-- (suponiendo que ataque sistematico signifique que ataca una vez a cada planta)
+ataqueSistematico :: [Planta] -> Zombie -> [Planta]
+ataqueSistematico plantas zombie = [ataqueDeZombie zombie planta | planta <- plantas]
+
+-- 7)
+resultadoDeAtaque :: LineaDeDefensa -> Horda -> LineaDeDefensa
+resultadoDeAtaque linea (a, b, c) = ataqueAMuerte (LineaDeDefensa {plantas = plantas linea, zombies = filter (not . esPeligroso) (zombies linea ++ a ++ b ++ c)})
+
+ataqueAMuerte :: LineaDeDefensa -> LineaDeDefensa
+ataqueAMuerte linea
+  | (null (plantas linea) && not (zombieEstaMuerto (head (zombies linea)))) || (null (zombies linea) && not (plantaEstaMuerta (last (plantas linea)))) = linea
+  | zombieEstaMuerto (head (zombies linea)) = ataqueAMuerte (linea {zombies = tail (zombies linea)})
+  | plantaEstaMuerta (last (plantas linea)) = ataqueAMuerte (linea {plantas = init (plantas linea)})
+  | otherwise = ataqueAMuerte (ataqueMutuo linea)
+
+ataqueMutuo :: LineaDeDefensa -> LineaDeDefensa
+ataqueMutuo linea = linea {plantas = init (plantas linea) ++ [ataqueDeZombie (head (zombies linea)) (last (plantas linea))], zombies = ataqueDePlanta (last (plantas linea)) (head (zombies linea)) : tail (zombies linea)}
