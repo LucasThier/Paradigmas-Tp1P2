@@ -293,5 +293,6 @@ la lista resultante por mas que el filter no sea realizado para todos los elemen
 Si H no es un elemento de la lista (o esta ultimo luego de infinitos elementos), la funcion nunca finalizaria de ejecutar.
 -}
 
+-- 11)
 nivelSupervivencia :: LineaDeDefensa -> Int
 nivelSupervivencia = \l -> sum (map vida (plantas l)) - foldl (\acc z -> acc + nivelDeMuerte z) 0 (zombies l)
