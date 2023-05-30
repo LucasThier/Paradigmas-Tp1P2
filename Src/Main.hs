@@ -1,3 +1,10 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Eta reduce" #-}
+{-# HLINT ignore "Avoid lambda" #-}
+{-# HLINT ignore "Redundant lambda" #-}
+import Data.ByteString (elemIndex)
+
 -- Declarar los data que se van a usar
 data Planta = Planta
   { vida :: Int,
@@ -11,13 +18,13 @@ data Zombie = Zombie
     accesorios :: [String],
     mordiscos :: Int
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data LineaDeDefensa = LineaDeDefensa
   { plantas :: [Planta],
     zombies :: [Zombie]
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- lineas de defensa de ejemplo
 linea1 =
@@ -83,16 +90,16 @@ superPeaShooter = Planta 5 0 7
 superSunFlower = Planta 7 2 0
 
 -- B) Modelado de los zombies y funcion nivelDeMuerte
-zombieBase = Zombie "Zombie Base" [] 1
+zombieBase = Zombie "ZombieBase" [] 1
 
-balloonZombie = Zombie "Balloon Zombie" ["Globo"] 1
+balloonZombie = Zombie "BalloonZombie" ["Globo"] 1
 
-newspaperZombie = Zombie "Newspaper Zombie" ["Diario"] 2
+newspaperZombie = Zombie "NewspaperZombie" ["Diario"] 2
 
-gargantuar = Zombie "Gargantuar Hulk Smash Puny God" ["Poste Electrico", "Zombie Enano"] 30
+gargantuar = Zombie "GargantuarHulkSmashPunyGod" ["Poste Electrico", "Zombie Enano"] 30
 
 nivelDeMuerte :: Zombie -> Int
-nivelDeMuerte = length . filter (/= ' ') . nombre
+nivelDeMuerte = length . nombre
 
 -- 2)
 -- A)Especialidades de las plantas
@@ -169,40 +176,38 @@ retorna false ya que haskell utiliza lasy evaluation, lo que significa que itera
 una planta que no sea proveedora, cuando la encuentre dejara de iterar (por mas que queden mas elementos en la lista) y retornara false.
 
 Si hubiera una cantidad infinita de sunFlowers, la funcion nunca dejaria de ejecutar
- ya que seguira iterando indefinidamente en busca de una planta no proveedora nunca la encontrara ya que solo hay sunFlowers.
+ya que seguira iterando indefinidamente en busca de una planta no proveedora nunca la encontrara ya que solo hay sunFlowers.
 -}
 -- 2)
 cactus = Planta 9 0 0
 
 -- 3)
-type Horda = ([Zombie], [Zombie], [Zombie])
+type Horda = [(Zombie, LineaDeDefensa)]
 
 hordaUno :: Horda
-hordaUno = ([zombieBase], [], [])
+hordaUno = [(zombieBase, linea1), (zombieBase, linea2), (zombieBase, linea3)]
 
 hordaBase :: Horda
-hordaBase = ([zombieBase, zombieBase], [zombieBase, zombieBase], [zombieBase, zombieBase])
+hordaBase = [(zombieBase, linea1), (zombieBase, linea2), (zombieBase, linea3), (zombieBase, linea1), (zombieBase, linea2), (zombieBase, linea3)]
 
 septimoRegimiento :: Horda
-septimoRegimiento = ([balloonZombie, balloonZombie], [newspaperZombie], [balloonZombie, balloonZombie])
+septimoRegimiento = [(newspaperZombie, linea2), (balloonZombie, linea1), (balloonZombie, linea1), (balloonZombie, linea3), (balloonZombie, linea3)]
 
 region :: Horda
-region = ([gargantuar, gargantuar], [gargantuar, gargantuar], [gargantuar, gargantuar])
+region = [(gargantuar, linea1), (gargantuar, linea2), (gargantuar, linea3), (gargantuar, linea1), (gargantuar, linea2), (gargantuar, linea3)]
 
 type Jardin = [LineaDeDefensa]
 
 jardin1 :: Jardin
 jardin1 = [linea1, linea2, linea3]
 
-agregarAJardinDe3Lineas :: Jardin -> Horda -> Jardin
-agregarAJardinDe3Lineas jardin (a, b, c) =
-  [ (head jardin) {zombies = zombies (head jardin) ++ a},
-    (head (tail jardin)) {zombies = zombies (head (tail jardin)) ++ b},
-    (head (tail (tail jardin))) {zombies = zombies (head (tail (tail jardin))) ++ c}
-  ]
+agregarHordaAJardin :: Jardin -> Horda -> Jardin
+agregarHordaAJardin jardin horda = [agregarHordaALinea linea horda | linea <- jardin]
+
+agregarHordaALinea :: LineaDeDefensa -> Horda -> LineaDeDefensa
+agregarHordaALinea linea horda = linea {zombies = zombies linea ++ map fst (filter ((== linea) . snd) horda)}
 
 -- 4)
--- Explicar Mejor
 rondaDeAtaque :: Planta -> Zombie -> Int -> (Planta, Zombie)
 rondaDeAtaque planta zombie cantAtaques = (nAtaquesDeZombie planta zombie cantAtaques, ataqueDePlanta planta zombie)
 
@@ -212,20 +217,18 @@ nAtaquesDeZombie planta zombie cantAtaques = nAtaquesDeZombie (ataqueDeZombie zo
 
 -- 5)
 plantaEstaMuerta :: Planta -> Bool
-plantaEstaMuerta = (== 0) . vida
+plantaEstaMuerta = (<= 0) . vida
 
 zombieEstaMuerto :: Zombie -> Bool
 zombieEstaMuerto = null . nombre
 
 -- 6)
--- que se refiere con ataque sistemático?
--- (suponiendo que ataque sistematico signifique que ataca una vez a cada planta)
 ataqueSistematico :: [Planta] -> Zombie -> [Planta]
 ataqueSistematico plantas zombie = [ataqueDeZombie zombie planta | planta <- plantas]
 
 -- 7)
 resultadoDeAtaque :: LineaDeDefensa -> Horda -> LineaDeDefensa
-resultadoDeAtaque linea (a, b, c) = ataqueAMuerte (LineaDeDefensa {plantas = plantas linea, zombies = filter (not . esPeligroso) (zombies linea ++ a ++ b ++ c)})
+resultadoDeAtaque linea horda = ataqueAMuerte (linea {zombies = filter (not . esPeligroso) (zombies (agregarHordaALinea linea horda))})
 
 ataqueAMuerte :: LineaDeDefensa -> LineaDeDefensa
 ataqueAMuerte linea
@@ -236,3 +239,59 @@ ataqueAMuerte linea
 
 ataqueMutuo :: LineaDeDefensa -> LineaDeDefensa
 ataqueMutuo linea = linea {plantas = init (plantas linea) ++ [ataqueDeZombie (head (zombies linea)) (last (plantas linea))], zombies = ataqueDePlanta (last (plantas linea)) (head (zombies linea)) : tail (zombies linea)}
+
+-- 8)
+theZombiesAteYourBrains :: Jardin -> Horda -> Bool
+theZombiesAteYourBrains jardin horda = gananLosZombies (agregarHordaAJardin jardin horda)
+
+gananLosZombies :: Jardin -> Bool
+gananLosZombies = all muerenTodasLasPlantas
+
+muerenTodasLasPlantas :: LineaDeDefensa -> Bool
+muerenTodasLasPlantas linea = not (any ((> 0) . vida) (ataqueEnSerie linea))
+
+ataqueEnSerie :: LineaDeDefensa -> [Planta]
+ataqueEnSerie linea
+  | null (zombies linea) = plantas linea
+  | otherwise = ataqueEnSerie linea {plantas = ataqueSistematico (plantas linea) (head (zombies linea)), zombies = tail (zombies linea)}
+
+-- 9)
+
+tieneMenosLetras :: Zombie -> LineaDeDefensa -> Bool
+tieneMenosLetras zombie linea = (\z l -> nivelDeMuerte z > foldl (\acc x -> acc + nivelDeMuerte x) 0 (zombies l)) zombie linea
+
+totalLetrasLinea :: LineaDeDefensa -> Int
+totalLetrasLinea linea
+  | null (zombies linea) = 0
+  | otherwise = (\lin -> nivelDeMuerte (head (zombies lin)) + totalLetrasLinea (lin {zombies = tail (zombies lin)})) linea
+
+{-
+10)
+La funcion recibe un elemento que debe ser comparable, una funcion, una tupla y unn lista.
+La funcion usa guardas para chequear si H pertenese a una lista, si pertenece,
+filtra todos los elementos de la lista comparandolos con H a travez de la funcion M.
+Luego retorna el primero de la lista, si H no pertenece a la lista retorna el primer elemento de la tupla
+
+A)Conceptos:
+• Guardas
+• Pattern Matching
+• Funciones de orden superior
+• Composición
+• Tuplas
+-}
+-- B)
+
+f :: Eq a => a -> (a -> a -> Bool) -> (a, b) -> [a] -> a
+f h m (p, _) lista
+  | h `elem` lista = head (filter (m h) lista)
+  | otherwise = p
+
+{-
+C) si la lista fuera infinita, debido a que haskell utiliza lazy evaluation, pueden existir dos casos:
+Si H es un elemento alcanzable de la lista, entonces realizara el filter y devolvera el primero de
+la lista resultante por mas que el filter no sea realizado para todos los elementos de la lista.
+Si H no es un elemento de la lista (o esta ultimo luego de infinitos elementos), la funcion nunca finalizaria de ejecutar.
+-}
+
+nivelSupervivencia :: LineaDeDefensa -> Int
+nivelSupervivencia = \l -> sum (map vida (plantas l)) - foldl (\acc z -> acc + nivelDeMuerte z) 0 (zombies l)
