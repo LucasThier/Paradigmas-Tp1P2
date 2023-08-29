@@ -75,6 +75,12 @@ linea8 =
       zombies = []
     }
 
+linea9 =
+  LineaDeDefensa
+    { plantas = [peaShooter],
+      zombies = []
+    }
+
 -- 1)
 -- A) Modelado de las plantas
 peaShooter = Planta 5 0 2
@@ -111,7 +117,7 @@ especialidadPlanta planta
 
 -- B)Peligrosidad de los zombies
 esPeligroso :: Zombie -> Bool
-esPeligroso zombie = nivelDeMuerte zombie > 10 || length (accesorios zombie) > 1
+esPeligroso zombie = ((> 10) . nivelDeMuerte) zombie || (((> 1) . length) . accesorios) zombie
 
 -- 3)
 -- A)Agregar plantas y zombies a una linea sin repetir codigo
@@ -141,16 +147,15 @@ necesitaSerDefendida = all esProveedora . plantas
 
 -- 4) Saber si una linea es mixta (no usar length)
 lineaMixta :: LineaDeDefensa -> Bool
-lineaMixta linea = tieneAlMenosDosPlantas linea && tienePlantasConEspecialidadesDistintas (plantas linea)
+lineaMixta linea = (tieneAlMenosDosPlantas . plantas) linea && (tienePlantasConEspecialidadesDistintas . plantas) linea
 
-tieneAlMenosDosPlantas :: LineaDeDefensa -> Bool
-tieneAlMenosDosPlantas linea = not (null (plantas linea)) && not (null (tail (plantas linea)))
+tieneAlMenosDosPlantas :: [Planta] -> Bool
+tieneAlMenosDosPlantas (prim : _ : _) = True
+tieneAlMenosDosPlantas _ = False
 
 tienePlantasConEspecialidadesDistintas :: [Planta] -> Bool
-tienePlantasConEspecialidadesDistintas lista
-  | null (tail lista) = True
-  | especialidadPlanta (head lista) == especialidadPlanta (head (tail lista)) = False
-  | otherwise = tienePlantasConEspecialidadesDistintas (tail lista)
+tienePlantasConEspecialidadesDistintas [_] = True
+tienePlantasConEspecialidadesDistintas (prim : seg : cola) = (especialidadPlanta prim /= especialidadPlanta seg) && tienePlantasConEspecialidadesDistintas (seg : cola)
 
 -- 5)Resultado de ataques
 -- A) Planta -> zombie
@@ -232,13 +237,13 @@ resultadoDeAtaque linea horda = ataqueAMuerte (linea {zombies = filter (not . es
 
 ataqueAMuerte :: LineaDeDefensa -> LineaDeDefensa
 ataqueAMuerte linea
-  | (null (plantas linea) && not (zombieEstaMuerto (head (zombies linea)))) || (null (zombies linea) && not (plantaEstaMuerta (last (plantas linea)))) = linea
-  | zombieEstaMuerto (head (zombies linea)) = ataqueAMuerte (linea {zombies = tail (zombies linea)})
-  | plantaEstaMuerta (last (plantas linea)) = ataqueAMuerte (linea {plantas = init (plantas linea)})
-  | otherwise = ataqueAMuerte (ataqueMutuo linea)
+  | ((null . plantas) linea && (((not . zombieEstaMuerto) . head) . zombies) linea) || ((null . zombies) linea && (((not . plantaEstaMuerta) . last) . plantas) linea) = linea
+  | ((zombieEstaMuerto . head) . zombies) linea = ataqueAMuerte (linea {zombies = (tail . zombies) linea})
+  | ((plantaEstaMuerta . last) . plantas) linea = ataqueAMuerte (linea {plantas = (init . plantas) linea})
+  | otherwise = (ataqueAMuerte . ataqueMutuo) linea
 
 ataqueMutuo :: LineaDeDefensa -> LineaDeDefensa
-ataqueMutuo linea = linea {plantas = init (plantas linea) ++ [ataqueDeZombie (head (zombies linea)) (last (plantas linea))], zombies = ataqueDePlanta (last (plantas linea)) (head (zombies linea)) : tail (zombies linea)}
+ataqueMutuo linea = linea {plantas = (init . plantas) linea ++ [ataqueDeZombie ((head . zombies) linea) ((last . plantas) linea)], zombies = ataqueDePlanta (last (plantas linea)) (head (zombies linea)) : tail (zombies linea)}
 
 -- 8)
 theZombiesAteYourBrains :: Jardin -> Horda -> Bool
